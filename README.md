@@ -117,3 +117,177 @@ JobSync uses a **multi-process Go backend** with a synchronous REST API and asyn
                                       │
                                       ▼
                                   Next.js UI
+
+## 🔄 Transactional Outbox Pattern
+
+One of the main architectural decisions in JobSync is the use of a **transactional outbox pattern**.
+
+The API does **not** send messages directly to SQS.
+
+This prevents a failure scenario where the database transaction succeeds but the SQS request fails, leaving an application in the database with no corresponding evaluation job.
+
+### Application Submission
+
+```text
+User submits application
+        │
+        ▼
+   API Server
+        │
+        ├── Upload documents to S3
+        │
+        ▼
+ PostgreSQL Transaction
+        │
+        ├── INSERT job_applications
+        ├── INSERT job_analysis
+        ├── INSERT outbox_messages
+        └── NOTIFY outbox_messages
+        │
+        ▼
+      COMMIT
+        │
+        ▼
+ API returns immediately
+
+The outbox worker then handles the queue operation asynchronously:
+
+PostgreSQL NOTIFY
+        │
+        ▼
+  Outbox Worker
+        │
+        ▼
+Read outbox_messages
+        │
+        ▼
+    Send to SQS
+        │
+        ├── Failure → Retry
+        │
+        └── Success
+              │
+              ▼
+      processed_at = NOW()
+
+Why Use an Outbox?
+Atomicity – The outbox record is committed alongside the application.
+Reliability – SQS failures can be retried independently.
+Decoupling – API requests don't depend on AWS queue availability.
+Fast responses – The user doesn't wait for SQS to accept the message.
+Recoverability – Unprocessed outbox records can be replayed if necessary.
+AI Evaluation Pipeline
+
+Once an application reaches SQS, the evaluation worker processes it asynchronously.
+
+SQS Message
+     │
+     ▼
+Idempotency Check
+     │
+     ▼
+Status → "In Review"
+     │
+     ├──────────────► Redis → WebSocket → Frontend
+     │
+     ▼
+Fetch Resume + Cover Letter URLs
+     │
+     ▼
+Download PDFs Concurrently
+     │
+     ▼
+Extract Document Text
+     │
+     ▼
+Fetch Job Description
+     │
+     ▼
+OpenAI Evaluation
+     │
+     ▼
+Match Score + Decision + Feedback
+     │
+     ├── Interview
+     │
+     └── Rejected
+     │
+     ▼
+Update PostgreSQL
+     │
+     ▼
+Redis Notification
+     │
+     ▼
+WebSocket
+     │
+     ▼
+Frontend
+
+The worker uses goroutines to download and process the resume and cover letter concurrently.
+
+SQS messages are only deleted after successful processing, preventing failed evaluations from being lost.
+
+Real-Time Notifications
+
+The evaluation worker is a separate process from the API server, so it cannot directly access browser WebSocket connections.
+
+Redis Pub/Sub acts as the communication bridge.
+
+Evaluation Worker
+        │
+        │ Redis Publish
+        ▼
+Redis "notifications"
+        │
+        ▼
+API Redis Subscriber
+        │
+        ▼
+WebSocket Manager
+        │
+        ▼
+Browser WebSocket
+        │
+        ▼
+WebSocketProvider
+        │
+        ▼
+Notification UI
+
+The frontend initially hydrates application statuses through REST and then receives live changes through WebSockets.
+
+Application states include:
+
+Applied
+In Review
+Interview
+Rejected
+Data Model
+Table	Purpose
+users	User accounts, profile data, and profile completeness
+jobs	Job listings
+user_saved_jobs	Saved/bookmarked jobs
+folders	User-created job folders
+job_folders	Jobs associated with folders
+job_applications	Submitted applications and application status
+job_analysis	AI evaluation state, score, feedback, and decision
+outbox_messages	Pending SQS messages
+
+Applications are protected against duplicate submissions using a unique constraint on:
+
+(job_id, user_email)
+
+This allows the backend to safely reject duplicate applications with a 409 Conflict response.
+
+Architectural Characteristics
+Strengths
+Transactional outbox pattern prevents database/queue inconsistencies.
+Asynchronous AI evaluation keeps application requests fast.
+SQS long polling efficiently consumes evaluation jobs.
+Idempotent evaluation protects against duplicate/replayed messages.
+Concurrent PDF processing uses goroutines to reduce evaluation latency.
+Redis Pub/Sub bridges the worker process and WebSocket layer.
+REST + WebSocket hybrid provides initial state hydration and real-time updates.
+Cursor-based pagination provides consistent pagination across job-related views.
+Separation of concerns between API, queue publishing, and AI evaluation.
