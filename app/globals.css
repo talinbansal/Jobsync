@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes pen-write {
+  0% {
+    transform: translate(8px, -8px) rotate(-30deg);
+    opacity: 0;
+  }
+
+  40% {
+    transform: translate(0px, 0px) rotate(-30deg);
+    opacity: 1;
+  }
+
+  80% {
+    transform: translate(-2px, 2px) rotate(-15deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(8px, 8px) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+.pen-write {
+  animation: pen-write 0.6s ease forwards;
+}
+
+@keyframes fill-bookmark {
+  from {
+    clip-path: inset(100% 0 0 0);
+    transform: scale(0.95);
+  }
+
+  70% {
+    clip-path: inset(0 0 0 0);
+    transform: scale(1.1);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+    transform: scale(1);
+  }
+}
+
+.bookmark-fill {
+  animation: fill-bookmark 0.35s ease-out forwards;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
