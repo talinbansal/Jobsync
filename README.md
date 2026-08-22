@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💼 JobSync – AI-Powered Job Application Dashboard
 
-## Getting Started
+JobSync is a full-stack job application management platform that helps users discover, organize, and apply to jobs while automatically evaluating applications using AI.
 
-First, run the development server:
+It combines a Next.js frontend with a multi-process Go backend, PostgreSQL, AWS infrastructure, Redis pub/sub, WebSockets, and OpenAI to create an asynchronous application evaluation pipeline.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🚀 Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- 🤖 **AI-Powered Application Evaluation** – Uses OpenAI to compare resumes and cover letters against job descriptions and produce a match score, decision, and feedback
+- 📄 **Application Management** – Apply manually with custom documents or automatically using profile information
+- ⚡ **Asynchronous Processing** – Applications are evaluated in the background using AWS SQS without blocking API requests
+- 🔄 **Transactional Outbox** – PostgreSQL outbox + `LISTEN/NOTIFY` reliably bridges database transactions and SQS publishing
+- 🔔 **Real-Time Notifications** – Redis pub/sub and WebSockets provide live application status updates
+- 🗂️ **Job Organization** – Save jobs and organize them into custom folders
+- 📊 **Application Tracking** – Track applications through `Applied → In Review → Interview / Rejected`
+- 🔐 **Session Authentication** – Cookie-based authentication with bcrypt password hashing
+- ☁️ **Cloud Storage** – AWS S3 stores resumes and cover letters
+- 📑 **Cursor Pagination** – Efficient pagination for jobs, saved jobs, applications, and folders
+- ✨ **Interactive UI** – Framer Motion animations, custom transitions, bookmark animations, and application success effects
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🧠 Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+**Frontend:**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Zustand
+- React Context
+- Framer Motion
+- Lucide React
+- Canvas Confetti
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Backend:**
 
-## Deploy on Vercel
+- Go
+- Fiber
+- PostgreSQL
+- Redis
+- WebSockets
+- AWS SQS
+- AWS S3
+- OpenAI API
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Infrastructure / Architecture:**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- PostgreSQL transactional outbox
+- PostgreSQL `LISTEN/NOTIFY`
+- AWS SQS long polling
+- Redis pub/sub
+- Concurrent Go workers
+- Server-side cookie sessions
+
+---
+
+## 🏗️ Architecture
+
+JobSync uses a **multi-process Go backend** with a synchronous REST API and asynchronous workers.
+
+```text
+                         ┌──────────────────────┐
+                         │     Next.js App      │
+                         │   React + TypeScript │
+                         └──────────┬───────────┘
+                                    │
+                         HTTP + WebSocket
+                                    │
+                                    ▼
+                    ┌───────────────────────────┐
+                    │       Go API Server       │
+                    │          Fiber            │
+                    │                           │
+                    │ REST API + Auth + S3      │
+                    │ WebSocket Connections     │
+                    │ Redis Subscriber          │
+                    └─────────────┬─────────────┘
+                                  │
+                              PostgreSQL
+                                  │
+                         ┌────────┴────────┐
+                         │                 │
+                         ▼                 ▼
+                 job_applications    outbox_messages
+                         │                 │
+                         │             NOTIFY
+                         │                 │
+                         │                 ▼
+                         │          ┌──────────────┐
+                         │          │ Outbox Worker│
+                         │          └──────┬───────┘
+                         │                 │
+                         │              AWS SQS
+                         │                 │
+                         │                 ▼
+                         │        ┌────────────────┐
+                         │        │ Evaluation     │
+                         │        │ Worker         │
+                         │        └───────┬────────┘
+                         │                │
+                         │        ┌───────┴────────┐
+                         │        │                │
+                         │       S3              OpenAI
+                         │        │                │
+                         │        └───────┬────────┘
+                         │                │
+                         │             PostgreSQL
+                         │                │
+                         │             Redis
+                         │                │
+                         │                ▼
+                         └────────► WebSocket
+                                      │
+                                      ▼
+                                  Next.js UI
