@@ -178,7 +178,7 @@ function HomePage() {
   useEffect(() => {
     const fetchSavedJobs = async () => {
       try {
-        const res = await fetch(`http://localhost:8080/fetch_saved_jobs?}`, {
+        const res = await fetch(`http://localhost:8080/fetch_saved_jobs`, {
           method: "GET",
           credentials: "include",
         });
